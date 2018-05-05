@@ -20,6 +20,7 @@
 
 import random
 import re
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -38,6 +39,11 @@ class RC4:
     """
 
     def __init__(self, key, n=256):
+        """
+        create a new RC4 object
+        :param key: RC4 key
+        :param n: s-box length
+        """
 
         # internal status
         # S-box
@@ -56,12 +62,11 @@ class RC4:
         # Contains the value in i-th position after the i-th iteration in ks
         self.swap = []
 
-    """
-    RC4's Key scheduling algorithm
-    """
 
     def ks(self):
-
+        """
+        RC4's Key scheduling algorithm
+        """
         self.s = list(range(0, self.n))
         self.swap = [0] * self.n
 
@@ -73,11 +78,10 @@ class RC4:
             self.s[i], self.s[j] = self.s[j], self.s[i]
             self.swap[i] = self.s[i]
 
-    """
-    RC4's Pseudo random generator
-    """
-
     def next(self):
+        """
+        RC4's Pseudo random generator
+        """
         self.i = (self.i + 1) % self.n
         tmp = self.s[self.i]
         self.j = (self.j + tmp) % self.n
@@ -88,13 +92,13 @@ class RC4:
 
         return self.s[k]
 
-    """
-    encrypt or decrypt given message.
-    result is returned.
-    """
+
 
     def crypt(self, msg):
-
+        """
+        encrypt or decrypt given message.
+        result is returned.
+        """
         # initialize a new keystream
         self.ks()
         l = len(msg)
@@ -115,22 +119,44 @@ class RC4Tester:
     """
 
     def __init__(self, key_sz=13, sb_sz=256):
+        """
+        initialize a new RC4Tester, use subclasses
+        to run a specific test
+        :param key_sz: key size
+        :param sb_sz: s-box size
+        """
         self.ks = key_sz
         self.sb_sz = sb_sz
         self.rc4 = None
 
     def initRC4(self):
+        """
+        initialize inner RC4 object
+        :return:
+        """
         k = self.make_key()
         self.rc4 = RC4(k, self.sb_sz)
         self.rc4.ks()
 
     def make_key(self):
+        """
+        generate a new random key
+        :return:  a new key
+        """
         rnd = random.Random()
         out = [0] * self.ks
         for i in range(self.ks):
             out[i] = rnd.randint(0, self.ks)
 
         return out
+
+    def test(self, count):
+        """
+        start a new test
+        :param count: number of execution for the test
+        :return: test result
+        """
+        pass
 
 
 class RC4RandomTest(RC4Tester):
@@ -175,63 +201,162 @@ class RC4SwapTest(RC4Tester):
         return unchanged
 
 
-def int_list(s):
-    out = [0] * len(s)
-    for i in range(len(s)):
-        out[i] = ord(s[i])
-    return out
+class Executor:
+    """
+    provide a common interface for every executor class
+    """
+    def run(self):
+        pass
 
 
-def get_file_name(mode='e'):
-    if mode == 'e':
-        in_file = input("Insert input file name: ")
-        msg = "Insert output file name[%s.rc4]: " % in_file
-        out_file = input(msg)
-        if out_file == "":
-            out_file = "%s.rc4" % in_file
+class TestRunner(Executor):
+    """
+    runs RC$ tests: RC4RandomTest or RC4SwapTest
+    """
+    def __init__(self, rc4, output):
+        """
+        initialize a TestRunner object, use run method to
+        run the test.
+        :param rc4: Test to run, RC4RandomTest RC4SwapTest
+        :param output: function to display test result, requires result list and test count
+        """
+        self.rc4 = rc4
+        self.count = 100000
+        self.output = output
 
-        return in_file, out_file
-
-    else:
-        in_file = input("Insert input file name: ")
-
-        if in_file.endswith('.rc4'):
-            tmp = in_file.replace('.rc4', '')
-            msg = "Insert output file name[%s]: " % tmp
+    def get_count(self):
+        count = input("Insert extraction count: ")
+        if TestRunner.check_int(count):
+            self.count = int(count)
         else:
-            msg = "Insert output file name[%s]: " % in_file
+            print(count, "is not an integer")
 
-        out_file = input(msg)
-        if out_file == "":
-            if tmp:
-                out_file = tmp
+    def run(self):
+        tmp = self.rc4()
+        tmp.initRC4()
+        result = tmp.test(self.count)
+        self.output(result, self.count)
+
+    @staticmethod
+    def check_int(s):
+        return re.match('^[1-9]\d*$', s) != None
+
+
+class Cipher(Executor):
+    """
+    encrypt or decrypt given files
+    """
+    def __init__(self, mode):
+        """
+        create a Cipher object, call rum method to
+        encrypt or decrypt given files
+        :param mode: 'e' to encrypt, 'd' to decrypt
+        """
+        key = Cipher.get_key()
+        self.rc4 = RC4(key)
+        self.in_file, self.out_file = Cipher.get_file_name(mode)
+
+    def run(self):
+        with open(self.out_file, "wb") as o:
+            with open(self.in_file, "rb") as i:
+                data = i.read()
+                out = self.rc4.crypt(data)
+                o.write(bytes(out))
+
+    @staticmethod
+    def get_file_name(mode='e'):
+        if mode == 'e':
+            in_file = input("Insert input file name: ")
+            msg = "Insert output file name[%s.rc4]: " % in_file
+            out_file = input(msg)
+            if out_file == "":
+                out_file = "%s.rc4" % in_file
+
+            return in_file, out_file
+
+        else:
+            in_file = input("Insert input file name: ")
+
+            tmp = ""
+            if in_file.endswith('.rc4'):
+                tmp = in_file.replace('.rc4', '')
+                msg = "Insert output file name[%s]: " % tmp
             else:
-                out_file = "%s.plain" % in_file
+                msg = "Insert output file name[%s.plain]: " % in_file
 
-        return in_file, out_file
+            out_file = input(msg)
+            if out_file == "":
+                if tmp == "":
+                    out_file = tmp
+                else:
+                    out_file = "%s.plain" % in_file
+
+            return in_file, out_file
+
+    @staticmethod
+    def get_key():
+        kstr = input("Insert a Key: ")
+        return Cipher.int_list(kstr)
+
+    @staticmethod
+    def int_list(s):
+        out = [0] * len(s)
+        for i in range(len(s)):
+            out[i] = ord(s[i])
+        return out
 
 
-def get_rc4():
-    user_key = input("Insert a Key: ")
-    key = int_list(user_key)
+class Runner:
+    """
+    this class it's a container for
+    function that initialize program's
+    operations
+    """
 
-    return RC4(key)
+    @staticmethod
+    def encrypt():
+        return Cipher('e')
 
+    @staticmethod
+    def decrypt():
+        return Cipher('d')
 
-def check_int(s):
-    return re.match('^[1-9]\d*$', s) != None
+    @staticmethod
+    def swap_test():
+        tmp = TestRunner(RC4SwapTest, plot_changes)
+        tmp.get_count()
+        return tmp
+
+    @staticmethod
+    def random_test():
+        tmp = TestRunner(RC4RandomTest, plot_random)
+        tmp.get_count()
+        return tmp
 
 
 def normalize(r, n):
+    """
+    takes absolute values from a test
+    and normalize them into range [0,1]
+    :param r: values from test
+    :param n: number of tests
+    :return: normalized values
+    """
     l = len(r)
     out = [0] * l
     for i in range(l):
         out[i] = r[i] / n
-
     return out
 
 
 def avg(l):
+    """
+    calculate the average value of input
+    list.
+    This function also print expected distribution
+    :param l: input list, usually from a RC4RandomTest
+    :return: the average value
+    """
     a = sum(l) / len(l)
 
     print("obtained", a)
@@ -242,10 +367,23 @@ def avg(l):
 
 
 def approx(n, i):
+    """
+    The approximation,according to Klain, of changes
+    after the i-th iteration of RC4's Key scheduling inside RC4's s-box
+    :param n: s-box length
+    :param i: iteration
+    :return: probability the i-th value won't change
+    """
     return (1 - (1 / n)) ** (n - i)
 
 
 def plot_random(r, n):
+    """
+    plot result from RC4RandomTest
+    :param r: test result
+    :param n: test count
+    :return: None
+    """
     o = normalize(r, n)
     x = range(len(o))
 
@@ -258,6 +396,12 @@ def plot_random(r, n):
 
 
 def plot_changes(r, n):
+    """
+    plot result from RC4SwapTest
+    :param r: test result
+    :param n: test count
+    :return: None
+    """
     o = normalize(r, n)
     x = range(len(o))
 
@@ -272,81 +416,32 @@ def plot_changes(r, n):
     plt.show()
 
 
-def get_count():
-    count = input("Insert extraction count: ")
-    if check_int(count):
-        c = int(count)
+# let use this script as a program or a library
+if __name__ == '__main__':
+    operations = {
+        'a': Runner.encrypt,
+        'b': Runner.decrypt,
+        'c': Runner.swap_test,
+        'd': Runner.random_test
+    }
+
+    choices = {
+        'a': "encrypt",
+        'b': "decrypt",
+        'c': "swap test",
+        'd': "random test"
+    }
+
+    for k in choices.keys():
+        tmp = "%c) %s" % (k, choices[k])
+        print(tmp)
+
+    cmd = input("Insert command: ")
+    f = operations.get(cmd)
+
+    if callable(f):
+        test = f()
+        test.run()
     else:
-        print(count, "is not an integer")
-        c = 100000
-    return c
-
-
-def test_random():
-    c = get_count()
-
-    tmp = RC4RandomTest()
-    tmp.initRC4()
-    result = tmp.test(c)
-    plot_random(result, c)
-
-
-def test_changes():
-    c = get_count()
-
-    tmp = RC4SwapTest()
-    tmp.initRC4()
-    result = tmp.test(c)
-    plot_changes(result, c)
-
-
-def encrypt():
-    rc4 = get_rc4()
-    in_file, out_file = get_file_name('e')
-
-    with open(out_file, 'wb') as w:
-        with open(in_file) as r:
-            data = int_list(r.read())
-            tmp = rc4.crypt(data)
-            w.write(bytes(tmp))
-
-
-def decrypt():
-    rc4 = get_rc4()
-    in_file, out_file = get_file_name('d')
-
-    with open(out_file, 'wb') as w:
-        with open(in_file, 'rb') as r:
-            data = r.read()
-            tmp = rc4.crypt(data)
-            w.write(bytes(tmp))
-
-
-operations = {
-    'a': 'test random',
-    'b': 'encrypt',
-    'c': 'decrypt',
-    'd': 'test changes'
-}
-
-actions = {
-    'a': test_random,
-    'b': encrypt,
-    'c': decrypt,
-    'd': test_changes
-}
-
-for k in operations.keys():
-    msg = "%s) %s" % (k, operations[k])
-    print(msg)
-
-o = input("Select: ")
-f = actions.get(o)
-
-if callable(f):
-    f()
-else:
-    print("unknown", o)
-
-
+        print(f, "is not a valid choice")
 
