@@ -1,6 +1,6 @@
 #! /usr/bin/python
 
-#   rc4.py - A simple RC4 implementation in Python3. Useful for testing and studing RC4 properties
+#   rc4.py - A simple RC4 implementation in Python3. Useful for testing and studying RC4 properties
 #
 #   Copyright (c) 2018 Filippo Ranza <filipporanza@gmail.com>
 #
@@ -62,6 +62,8 @@ class RC4:
         # Contains the value in i-th position after the i-th iteration in ks
         self.swap = []
 
+    def set_key(self, k):
+        self.key = k
 
     def ks(self):
         """
@@ -185,6 +187,17 @@ class RC4SwapTest(RC4Tester):
 
     def __init__(self, key_sz=13, sb_sz=256):
         super().__init__(key_sz, sb_sz)
+
+    def initRC4(self):
+
+        k = self.make_key()
+
+        if self.rc4 == None:
+            self.rc4 = RC4(k, self.sb_sz)
+        else:
+            self.rc4.set_key(k)
+
+        self.rc4.ks()
 
     def test(self, count):
         unchanged = [0] * self.sb_sz
